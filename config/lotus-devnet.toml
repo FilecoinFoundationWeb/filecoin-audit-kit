@@ -1,0 +1,9 @@
+# Used by: ./setup.sh --fevm
+# Manual use: cp config/lotus-devnet.toml ~/.lotus-local-net/config.toml
+
+[API]
+  # ListenAddress = "/ip4/127.0.0.1/tcp/1234/http"
+
+[Fevm]
+  EnableEthRPC = true
+

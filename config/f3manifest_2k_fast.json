@@ -1,0 +1,43 @@
+{
+    "Pause": false,
+    "ProtocolVersion": 4,
+    "BootstrapEpoch": 10,
+    "NetworkName": "2k",
+    "ExplicitPower": null,
+    "IgnoreECPower": false,
+    "InitialInstance": 0,
+    "CommitteeLookback": 5,
+    "CatchUpAlignment": 0,
+    "Gpbft": {
+        "Delta": 3000000000,
+        "DeltaBackOffExponent": 2,
+        "MaxLookaheadRounds": 5,
+        "RebroadcastBackoffBase": 6000000000,
+        "RebroadcastBackoffExponent": 1.3,
+        "RebroadcastBackoffSpread": 0.1,
+        "RebroadcastBackoffMaxDelay": 60000000000
+    },
+    "EC": {
+        "Period": 4000000000,
+        "Finality": 5,
+        "DelayMultiplier": 2,
+        "BaseDecisionBackoffTable": [
+            1.3,
+            1.69,
+            2.2,
+            2.86,
+            3.71,
+            4.83,
+            6.27,
+            7.5
+        ],
+        "HeadLookback": 0,
+        "Finalize": true
+    },
+    "CertificateExchange": {
+        "ClientRequestTimeout": 10000000000,
+        "ServerRequestTimeout": 60000000000,
+        "MinimumPollInterval": 30000000000,
+        "MaximumPollInterval": 120000000000
+    }
+}
