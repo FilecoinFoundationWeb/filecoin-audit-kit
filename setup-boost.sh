@@ -221,8 +221,9 @@ if [[ -f "${BOOST_DIR}/docker/devnet/Dockerfile.source" ]]; then
 fi
 
 if [[ -f "${BOOST_DIR}/docker/devnet/boost/entrypoint.sh" ]]; then
-  info "Patching boost entrypoint to include --deprecated=true flag..."
+  info "Patching boost entrypoint to include --deprecated=true flag and enable HTTP publisher..."
   sed -i 's|boostd -vv run &> $BOOST_PATH/boostd.log &|boostd -vv run --deprecated=true \&> $BOOST_PATH/boostd.log \&|g' "${BOOST_DIR}/docker/devnet/boost/entrypoint.sh"
+  sed -i '/echo Updating config values/a \  sed -i "/\\[IndexProvider.HttpPublisher\\]/,/Enabled =/ s/#Enabled = false/Enabled = true/" $BOOST_PATH/config.toml\n  sed -i "s/#PublicHostname = .*/PublicHostname = \\"boost\\"/" $BOOST_PATH/config.toml' "${BOOST_DIR}/docker/devnet/boost/entrypoint.sh"
 fi
 
 
