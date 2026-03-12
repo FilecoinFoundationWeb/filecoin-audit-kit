@@ -13,7 +13,8 @@
 #   --no-fast-f3            Disable F3 fast bootstrap
 #   --fevm                  Enable Ethereum RPC
 #   --lotus-version <tag>   Checkout specific Lotus release
-#   --clean                 Wipe state and start fresh
+#   --clean                 Wipe state and start fresh (without rebuilding)
+#   --rebuild               Force re-compilation of Lotus binaries
 #   --stop                  Stop all devnet processes
 #   --status                Show running devnet info
 #   -h, --help              Show this help
@@ -21,6 +22,8 @@
 # Examples:
 #   ./setup.sh                    # 1 node, F3 fast, ready to go
 #   ./setup.sh --nodes 3 --fevm   # 3-node network with FEVM
+#   ./setup.sh --clean            # Instantly wipe chain state and restart
+#   ./setup.sh --rebuild          # Wipe build artifacts and recompile
 #   ./setup.sh --stop             # Shut it all down
 # ===========================================================================
 
@@ -38,6 +41,7 @@ NUM_NODES=1
 FAST_F3=true
 FEVM=false
 CLEAN=false
+REBUILD=false
 STOP=false
 STATUS=false
 LOTUS_VERSION=""
@@ -60,6 +64,7 @@ while [[ $# -gt 0 ]]; do
         --fevm)             FEVM=true; shift ;;
         --lotus-version)    LOTUS_VERSION="$2"; shift 2 ;;
         --clean)            CLEAN=true; shift ;;
+        --rebuild)          REBUILD=true; shift ;;
         --stop)             STOP=true; shift ;;
         --status)           STATUS=true; shift ;;
         -h|--help)
@@ -132,7 +137,7 @@ if $CLEAN; then
     if [[ -d "$WORK_DIR" ]]; then
         find "$WORK_DIR" -mindepth 1 -maxdepth 1 ! -name "lotus" -exec rm -rf {} +
     fi
-    ok "Clean complete (kept Lotus source and binaries)"
+    ok "State wiped (kept Lotus binaries)"
 fi
 
 mkdir -p "$WORK_DIR" "$LOGS_DIR"
@@ -145,10 +150,12 @@ fi
 
 cd "$LOTUS_SRC"
 
+
 if [[ -n "$LOTUS_VERSION" ]]; then
     git fetch --tags 2>/dev/null
     info "Checking out $LOTUS_VERSION..."
     git checkout "$LOTUS_VERSION"
+    REBUILD=true
 else
     git fetch --tags 2>/dev/null
     LATEST=$(git tag -l 'v*' --sort=-v:refname | grep -vE 'rc|beta|alpha' | head -1 || echo "")
@@ -160,22 +167,32 @@ fi
 
 LOTUS_VER=$(git describe --tags --always 2>/dev/null || echo "unknown")
 
+# Restore any previous uncommitted manifest changes (from interrupted setups)
+git restore build/buildconstants/f3manifest_2k.json 2>/dev/null || true
+
 # ── Apply F3 fast bootstrap (default: ON) ──
 if $FAST_F3; then
     F3_MANIFEST="$LOTUS_SRC/build/buildconstants/f3manifest_2k.json"
-    F3_FAST="$SCRIPT_DIR/config/f3manifest_2k_fast.json"
 
-    if [[ -f "$F3_FAST" ]] && [[ -f "$F3_MANIFEST" ]]; then
-        cp "$F3_FAST" "$F3_MANIFEST"
-        ok "F3 fast bootstrap applied (BootstrapEpoch=10, Finality=5)"
-    elif [[ -f "$F3_MANIFEST" ]]; then
-        sed -i 's/"BootstrapEpoch": *[0-9]*/"BootstrapEpoch": 10/' "$F3_MANIFEST"
-        sed -i 's/"Finality": *[0-9]*/"Finality": 5/' "$F3_MANIFEST"
-        ok "F3 manifest patched inline"
+    if [[ -f "$F3_MANIFEST" ]]; then
+        # Use jq if available to safely update fields, otherwise fallback to rough sed
+        if command -v jq >/dev/null 2>&1; then
+            jq '.BootstrapEpoch = 10 | .EC.Finality = 5' "$F3_MANIFEST" > "${F3_MANIFEST}.tmp" && mv "${F3_MANIFEST}.tmp" "$F3_MANIFEST"
+            ok "F3 fast bootstrap applied via jq (BootstrapEpoch=10, Finality=5)"
+        else
+            sed -i 's/"BootstrapEpoch": *[0-9]*/"BootstrapEpoch": 10/' "$F3_MANIFEST"
+            sed -i 's/"Finality": *[0-9]*/"Finality": 5/' "$F3_MANIFEST"
+            ok "F3 manifest patched inline via sed"
+        fi
     fi
 fi
 
 # ── Build ──
+if $REBUILD && [[ -d "$LOTUS_SRC" ]]; then
+    info "Cleaning Lotus build artifacts due to explicit rebuild..."
+    make clean 2>/dev/null || true
+fi
+
 if [[ ! -x "$LOTUS_SRC/lotus" ]]; then
     info "Building Lotus 2k binaries (5-10 min first time)..."
     make 2k 2>&1 | tail -3
